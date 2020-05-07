@@ -3,6 +3,8 @@ let express = require("express");
 let socketIo = require("socket.io");
 let http = require("http");
 
+const { addUser, removeUser, getUser, getUserInRoom } = require("./user");
+
 const port = process.env.PORT || 5000;
 const app = express();
 const server = http.createServer(app);
@@ -10,14 +12,28 @@ const io = socketIo(server);
 
 const router = require("./router");
 io.on("connection", socket => {
-  console.log("we have new connection");
+  // console.log("we have new connection");
   socket.on("join", ({ name, room }, callback) => {
-    console.log(name, room);
+    const { error, user } = addUser({ id: socket.id, name, room });
 
-    const error = true;
-    if (error) {
-      callback({ error: error });
-    }
+    if (error) return callback(error);
+
+    socket.emit("message", {
+      user: "Admin",
+      text: `${user.name} ,Welcome to the room ${user.room}`
+    });
+    socket.broadcast
+      .to(user.room)
+      .emit("message", { user: "admin", text: `${user.name}, has join` });
+
+    socket.join(user.room);
+
+    callback();
+  });
+
+  socket.on("sendMessage", (message, callback) => {
+    const user = getUser(socket.id);
+    io.to(user.room).emit("message", { user: user.name, text: message });
   });
   socket.on("disconnect", () => {
     console.log(" User left");
